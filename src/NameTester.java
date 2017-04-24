@@ -360,7 +360,7 @@ public class NameTester {
 		debugPrint(sortedList.toString(), alwaysPrint);
 		
 		Collections.sort(sortedLoc);
-		debugPrint("\nCounts of Unique Loc found: " + sortedLoc.size() + " in " + totalLocs, alwaysPrint);
+		debugPrint("\nCounts of Unique Locations found: " + sortedLoc.size() + " in " + totalLocs, alwaysPrint);
 		debugPrint(sortedLoc.toString(), alwaysPrint);
 		
 		Collections.sort(sortedLocList);
