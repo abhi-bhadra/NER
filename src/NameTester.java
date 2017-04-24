@@ -30,6 +30,7 @@ public class NameTester {
 	static AbstractSequenceClassifier<CoreLabel> classifier;
 	static String namelist;
 	static String wordlist;
+	static String excludedList;
 	static boolean needsInit = true;
 	static HashSet<String> nameSet = new HashSet<String>();
 	static HashSet<String> locationSet = new HashSet<String>();
@@ -41,6 +42,7 @@ public class NameTester {
 		if (needsInit) {
 			initNameList();
 			initWordList();
+			initExcludedList();
 			String serializedClassifier = "english.all.3class.distsim.crf.ser.gz";
 			classifier = CRFClassifier.getClassifier(serializedClassifier);
 			needsInit = false;
@@ -53,6 +55,10 @@ public class NameTester {
 
 	static void initWordList() throws Exception {
 		wordlist = IOUtils.slurpFile("web2.txt");
+	}
+	
+	static void initExcludedList() throws Exception{
+		excludedList=IOUtils.slurpFile("Exclusions.txt");
 	}
 
 	// print debug statements
@@ -144,6 +150,9 @@ public class NameTester {
 		boolean isWord = true;
 		boolean isInNamelist = false;
 
+		boolean isExcluded = checkExclusions(aName);
+		if (isExcluded) return false;
+		
 		// print what is being tested
 		// System.out.println("\nName Input: " + aName);
 		debugPrint("\nName Input: " + aName, defaultLevel);
@@ -170,6 +179,7 @@ public class NameTester {
 			}
 			isName = !isWord;
 		}
+		
 
 		// check with NER library if the string is a name
 		if (!isName) {
@@ -231,10 +241,10 @@ public class NameTester {
 	 static boolean checkDictionary(String aName) {
 		boolean isWord = false;
 		// if see same name shaped word more than once, assume it is a name
-//		if (wordShapeSet.contains(aName)) {
-//			debugPrint("Dictionary check: " + aName, defaultLevel);
-//			return isWord;
-//		}
+		if (wordShapeSet.contains(aName)) {
+			debugPrint("Dictionary check: " + aName, defaultLevel);
+			return isWord;
+		}
 		String lcName = aName.toLowerCase();
 		if (!lcName.equals(aName)) {
 			if (checkRegex(aName)) {
@@ -247,6 +257,22 @@ public class NameTester {
 		}
 
 		return isWord;
+	}
+	 
+	 static boolean checkExclusions(String aName) {
+		boolean isExcluded = false;
+		// if see same name shaped word more than once, assume it is a name
+//		if (wordShapeSet.contains(aName)) {
+//			debugPrint("Dictionary check: " + aName, defaultLevel);
+//			return isWord;
+//		}
+		
+		isExcluded = excludedList.indexOf((aName + " ")) > -1;
+		if (isExcluded) {
+			debugPrint("Excluded Matches: " + aName, defaultLevel);
+		}
+
+		return isExcluded;
 	}
 
 	static boolean checkNameList(String aName) {
