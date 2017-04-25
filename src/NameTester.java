@@ -152,8 +152,8 @@ public class NameTester {
 
 		NamedEntityRetrievalResponse nerResp= new NamedEntityRetrievalResponse();
 		if (result) {
-			if (alreadySeenName || nameResult) nerResp.setResponseType(nerResp.PERSON);
-			if (alreadySeenLoc || locResult) nerResp.setResponseType(nerResp.LOCATION);
+			if (alreadySeenName || nameResult) nerResp.setResponseType(NamedEntityRetrievalResponse.getPerson());
+			if (alreadySeenLoc || locResult) nerResp.setResponseType(NamedEntityRetrievalResponse.getLocation());
 		}
 		return nerResp;
 		

@@ -2,7 +2,6 @@
 public class NamedEntityRetrievalResponse {
 	public NamedEntityRetrievalResponse() {
 		super();
-		responseType=0;
 		// TODO Auto-generated constructor stub
 	}
 
@@ -17,16 +16,28 @@ public class NamedEntityRetrievalResponse {
 	
 	int responseType=0;
 	
+	public static int getPerson() {
+		return PERSON;
+	}
+
+	public static int getLocation() {
+		return LOCATION;
+	}
+
+	public static int getOther() {
+		return OTHER;
+	}
+
 	public boolean isPerson() {
-		return responseType==PERSON;
+		return responseType==getPerson();
 	}
 	
 	public boolean isLocation() {
-		return responseType==LOCATION;
+		return responseType==getLocation();
 	}
 	
 	public boolean isOther() {
-		return responseType==OTHER;
+		return responseType==getOther();
 	}
 
 	public int getResponseType() {
