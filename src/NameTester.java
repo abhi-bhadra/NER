@@ -69,7 +69,7 @@ public class NameTester {
 	}
 
 	// public method to test
-	public static boolean checkStringForName(String str) throws Exception {
+	public static boolean checkStringForNameOrLocation(String str) throws Exception {
 		boolean result = false;
 		initIfRequired();
 		debugPrint("Input Token: " + str, defaultLevel);
@@ -84,14 +84,15 @@ public class NameTester {
 				wordsChecked = wordsChecked + 1;
 				boolean alreadySeenName = false;
 				boolean alreadySeenLoc = false;
-				boolean subResult = false;
+				boolean nameResult = false;
+				boolean locResult = false;
 				
 				alreadySeenName = nameSet.contains(cl.toString());
 				alreadySeenLoc = locationSet.contains(cl.toString());
 				
 				if (!(alreadySeenName || alreadySeenLoc)) {
 					// previously unseen name or location
-					subResult = checkName(cl);
+					nameResult = checkName(cl);
 				} else {
 					// previously seen name or location
 					result = true;
@@ -112,7 +113,7 @@ public class NameTester {
 				// printProbalitiesForChunk(classifier, word.toString());
 
 				// new word was determined to be a newly seen name
-				if (subResult) {
+				if (nameResult) {
 					result = true;
 					debugPrint("Cleaned Name: " + cl.toString(), defaultLevel);
 					nameSet.add(cl.toString());
@@ -123,10 +124,10 @@ public class NameTester {
 				}
 				
 				// if word was not already a location, see if it is a newly found location now
-				if (!alreadySeenLoc) {
-					alreadySeenLoc = locationSet.contains(cl.toString());
-					if (alreadySeenLoc) {
-						// result = true;
+				if (!(alreadySeenLoc || nameResult)) {
+					locResult = checkLocation(cl);
+					if (locResult) {
+						result = true;
 						debugPrint("Cleaned Loc: " + cl.toString(), defaultLevel);
 						locationSet.add(cl.toString());
 						NameWord nw = new NameWord(cl.toString());
@@ -181,34 +182,49 @@ public class NameTester {
 		}
 		
 
-		// check with NER library if the string is a name
+		// check with NER library if the string is a name, override initial result
 		if (!isName) {
 			debugPrint("Checking NER: " + aName, defaultLevel);
 			boolean isNER = false;
 			isNER = checkNERPerson(aNameWord);
 			if (isNER) {
 				debugPrint("Result Person: " + aName + ": " + isNER, alwaysPrint);
-				nameSet.add(aName.toString());
 			}
 			isName = isNER;
 		}
 		
-		// check with NER library if the string is a location
-		if (!isName) {
-			debugPrint("Checking NER: " + aName, defaultLevel);
-			boolean isNER = false;
-			isNER = checkNERLocation(aNameWord);
-			if (isNER) {
-				debugPrint("Result Location: " + aName + ": " + isNER, alwaysPrint);
-				locationSet.add(aName);
-			}
-			//isName = isNER;
-		}
+		if (isName) nameSet.add(aName.toString());
 
 		// either the name is in the shape of a name Xx* and not a dictionary
 		// word, or NER thinks it is a name
 		return (isName);
+	}
+	
+	// check if a given word is a Location
+	static boolean checkLocation(CoreLabel aLocWord) {
 
+		String aLoc = aLocWord.toString();
+		boolean isLocation = false;
+
+		boolean isExcluded = checkExclusions(aLoc);
+		if (isExcluded)
+			return false;
+
+		// print what is being tested
+		// System.out.println("\nName Input: " + aName);
+		debugPrint("\nLocation Input: " + aLoc, defaultLevel);
+
+		// check with NER library if the string is a location
+		debugPrint("Checking Location NER: " + aLoc, defaultLevel);
+		boolean isNER = false;
+		isNER = checkNERLocation(aLocWord);
+		if (isNER) {
+			debugPrint("Result Location: " + aLoc + ": " + isNER, alwaysPrint);
+			locationSet.add(aLoc);
+			isLocation = isNER;
+		}
+		
+		return isLocation;
 	}
 	
 	
@@ -337,7 +353,7 @@ public class NameTester {
 				debugPrint("File Token: " + str, defaultLevel);
 
 				// run test
-				result = checkStringForName(str);
+				result = checkStringForNameOrLocation(str);
 
 				// display results
 				int lev = defaultLevel;
