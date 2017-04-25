@@ -21,10 +21,17 @@ it will use the file MyTestFile.txt
 Some sample works of literature used are
 
 Frankenstein (Frank.txt)
+
 Good Earth (GoodEarth.txt)
+
 Hound of Baskervilles (HoundBask.txt)
+
 King Solomon's Mines (KSM.txt)
+
 Lord of the Flies (LOTF.txt)
+
 The Guide (TheGuide.txt)
+
 The Idiot (TheIdiot.txt)
-War and Peace (WarAndPeace.txt)'
+
+War and Peace (WarAndPeace.txt)
