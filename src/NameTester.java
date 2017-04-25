@@ -69,79 +69,95 @@ public class NameTester {
 	}
 
 	// public method to test
-	public static boolean checkStringForNameOrLocation(String str) throws Exception {
+	public static NamedEntityRetrievalResponse checkStringForNameOrLocation(String str) throws Exception {
 		boolean result = false;
+		boolean alreadySeenName = false;
+		boolean alreadySeenLoc = false;
+		boolean nameResult = false;
+		boolean locResult = false;
+		
 		initIfRequired();
 		debugPrint("Input Token: " + str, defaultLevel);
 		
-		//String cleaned = str.replace('-', ' ');
+		//Replace all non alpha chars for right now
 		String cleaned = str.replaceAll("[^a-zA-Z\\d\\s:]", " ");
 		cleaned = cleaned.trim();
-		//System.out.println(cleaned);
+		debugPrint("Cleaned Input Token: " + cleaned, defaultLevel);
 		for (List<CoreLabel> lcl : classifier.classify(cleaned)) {
 			for (CoreLabel cl : lcl) {
-
-				wordsChecked = wordsChecked + 1;
-				boolean alreadySeenName = false;
-				boolean alreadySeenLoc = false;
-				boolean nameResult = false;
-				boolean locResult = false;
 				
-				alreadySeenName = nameSet.contains(cl.toString());
-				alreadySeenLoc = locationSet.contains(cl.toString());
-				
-				if (!(alreadySeenName || alreadySeenLoc)) {
-					// previously unseen name or location
-					nameResult = checkName(cl);
-				} else {
-					// previously seen name or location
-					result = true;
-					// increment count
-					if (alreadySeenName) {
-						NameWord nw = nameWordMap.get(cl.toString());
-						nw.incrementCount();
-						names++;
-					}
-					if (alreadySeenLoc) {
-						NameWord nw = locMap.get(cl.toString());
-						nw.incrementCount();
-						locations++;
-					}
-					
-				}
+				// stop checking once something is found within token passed in
+				if (!result) {
 
-				// printProbalitiesForChunk(classifier, word.toString());
+					wordsChecked = wordsChecked + 1;
 
-				// new word was determined to be a newly seen name
-				if (nameResult) {
-					result = true;
-					debugPrint("Cleaned Name: " + cl.toString(), defaultLevel);
-					nameSet.add(cl.toString());
-					NameWord nw = new NameWord(cl.toString());
-					nw.incrementCount();
-					nameWordMap.putIfAbsent(nw.getWord(), nw);
-					names++;
-				}
-				
-				// if word was not already a location, see if it is a newly found location now
-				if (!(alreadySeenLoc || nameResult)) {
-					locResult = checkLocation(cl);
-					if (locResult) {
+
+					alreadySeenName = nameSet.contains(cl.toString());
+					alreadySeenLoc = locationSet.contains(cl.toString());
+
+					if (!(alreadySeenName || alreadySeenLoc)) {
+						// previously unseen name or location, check for name
+						// first
+						nameResult = checkName(cl);
+					} else {
+						// previously seen name or location, just increment
+						// counters
 						result = true;
-						debugPrint("Cleaned Loc: " + cl.toString(), defaultLevel);
-						locationSet.add(cl.toString());
+						// increment count
+						if (alreadySeenName) {
+							NameWord nw = nameWordMap.get(cl.toString());
+							nw.incrementCount();
+							names++;
+						}
+						if (alreadySeenLoc) {
+							NameWord nw = locMap.get(cl.toString());
+							nw.incrementCount();
+							locations++;
+						}
+
+					}
+
+					// printProbalitiesForChunk(classifier, word.toString());
+
+					// new word was determined to be a newly seen name
+					if (nameResult) {
+						result = true;
+						debugPrint("Cleaned Name: " + cl.toString(), defaultLevel);
+						nameSet.add(cl.toString());
 						NameWord nw = new NameWord(cl.toString());
 						nw.incrementCount();
-						locations++;
-						locMap.putIfAbsent(nw.getWord(), nw);
+						nameWordMap.putIfAbsent(nw.getWord(), nw);
+						names++;
 					}
+
+					// if word was not already a location, or a new name, see if
+					// it is a newly found location now
+					if (!(alreadySeenLoc || nameResult)) {
+						locResult = checkLocation(cl);
+						if (locResult) {
+							result = true;
+							debugPrint("Cleaned Location: " + cl.toString(), defaultLevel);
+							locationSet.add(cl.toString());
+							NameWord nw = new NameWord(cl.toString());
+							nw.incrementCount();
+							locations++;
+							locMap.putIfAbsent(nw.getWord(), nw);
+						}
+					}
+
 				}
 
 			}
-
 		}
 
-		return result;
+		NamedEntityRetrievalResponse nerResp= new NamedEntityRetrievalResponse();
+		if (result) {
+			if (alreadySeenName || nameResult) nerResp.setResponseType(nerResp.PERSON);
+			if (alreadySeenLoc || locResult) nerResp.setResponseType(nerResp.LOCATION);
+		}
+		return nerResp;
+		
+		
 	}
 
 	// check if a given word is a name
@@ -340,7 +356,7 @@ public class NameTester {
 
 			// read input
 			String fileContents;
-			boolean result;
+			NamedEntityRetrievalResponse result;
 			fileContents = IOUtils.slurpFile(filename);
 
 			// System.out.println(fileContents);
@@ -356,59 +372,52 @@ public class NameTester {
 				result = checkStringForNameOrLocation(str);
 
 				// display results
-				int lev = defaultLevel;
-				if (result) {
-					//lev = alwaysPrint;
+				int lev = alwaysPrint;
+				if (!result.isOther()) {
 					debugPrint("String Input: " + str, lev);
-					debugPrint("Has Name: " + result, lev);
-					debugPrint("", lev);
-					//names++;
-				} else {
-					// lev = alwaysPrint;
-					debugPrint("String Input: " + str, lev);
-					debugPrint("Has Name: " + result, lev);
+					debugPrint("Has Entity: " + result, lev);
 					debugPrint("", lev);
 				}
 
 			}
-
+			
 			// report hit rate
+			debugPrint("\n", alwaysPrint);
 			debugPrint("Words Checked: " + wordsChecked, alwaysPrint);
 			debugPrint("Names Found: " + names, alwaysPrint);
 			debugPrint("Locations Found: " + locations, alwaysPrint);
 
-		}
-		
-		List<NameWord> sortedNames = new ArrayList<NameWord>(nameWordMap.values());
-		List<NameWord> sortedLoc = new ArrayList<NameWord>(locMap.values());
-		List<String> sortedList = new ArrayList<String>(nameSet);
-		List<String> sortedLocList = new ArrayList<String>(locationSet);
-		int totalNames=0;
-		int totalLocs=0;
-		for (NameWord temp : sortedNames) {
-			totalNames = totalNames + temp.occurance;
-		}
-		
-		for (NameWord temp : sortedLoc) {
-			totalLocs = totalLocs + temp.occurance;
-		}
+			List<NameWord> sortedNames = new ArrayList<NameWord>(nameWordMap.values());
+			List<NameWord> sortedLoc = new ArrayList<NameWord>(locMap.values());
+			List<String> sortedList = new ArrayList<String>(nameSet);
+			List<String> sortedLocList = new ArrayList<String>(locationSet);
+			int totalNames = 0;
+			int totalLocs = 0;
+			for (NameWord temp : sortedNames) {
+				totalNames = totalNames + temp.occurance;
+			}
 
-		Collections.sort(sortedNames);
-		debugPrint("\nCounts of Unique Names found: " + sortedNames.size() + " in " + totalNames, alwaysPrint);
-		debugPrint(sortedNames.toString(), alwaysPrint);
-		
-		Collections.sort(sortedList);
-		debugPrint("\nList of Unique Names found: " + sortedList.size() + " in " + totalNames, alwaysPrint);
-		debugPrint(sortedList.toString(), alwaysPrint);
-		
-		Collections.sort(sortedLoc);
-		debugPrint("\nCounts of Unique Locations found: " + sortedLoc.size() + " in " + totalLocs, alwaysPrint);
-		debugPrint(sortedLoc.toString(), alwaysPrint);
-		
-		Collections.sort(sortedLocList);
-		debugPrint("\nList of Unique Locations found: " + sortedLocList.size() + " in " + totalLocs, alwaysPrint);
-		debugPrint(sortedLocList.toString(), alwaysPrint);
+			for (NameWord temp : sortedLoc) {
+				totalLocs = totalLocs + temp.occurance;
+			}
 
+			Collections.sort(sortedNames);
+			debugPrint("\nCounts of Unique Names found: " + sortedNames.size() + " in " + totalNames, alwaysPrint);
+			debugPrint(sortedNames.toString(), alwaysPrint);
+
+			Collections.sort(sortedList);
+			debugPrint("\nList of Unique Names found: " + sortedList.size() + " in " + totalNames, alwaysPrint);
+			debugPrint(sortedList.toString(), alwaysPrint);
+
+			Collections.sort(sortedLoc);
+			debugPrint("\nCounts of Unique Locations found: " + sortedLoc.size() + " in " + totalLocs, alwaysPrint);
+			debugPrint(sortedLoc.toString(), alwaysPrint);
+
+			Collections.sort(sortedLocList);
+			debugPrint("\nList of Unique Locations found: " + sortedLocList.size() + " in " + totalLocs, alwaysPrint);
+			debugPrint(sortedLocList.toString(), alwaysPrint);
+
+		}
 	}
 
 }
