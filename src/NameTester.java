@@ -207,7 +207,7 @@ public class NameTester {
 			boolean isNER = false;
 			isNER = checkNERPerson(aNameWord);
 			if (isNER) {
-				debugPrint("Result Person: " + aName + ": " + isNER, alwaysPrint);
+				debugPrint("Result Person: " + aName + ": " + isNER, defaultLevel);
 			}
 			isName = isNER;
 		}
@@ -231,6 +231,9 @@ public class NameTester {
 		
 		boolean isName = checkNameList(aLoc);
 		if (isName) return false;
+		
+		isName = nameSet.contains(aLoc);
+		if (isName) return false;
 
 		// print what is being tested
 		// System.out.println("\nName Input: " + aName);
@@ -241,7 +244,7 @@ public class NameTester {
 		boolean isNER = false;
 		isNER = checkNERLocation(aLocWord);
 		if (isNER) {
-			debugPrint("Result Location: " + aLoc + ": " + isNER, alwaysPrint);
+			debugPrint("Result Location: " + aLoc + ": " + isNER, defaultLevel);
 			locationSet.add(aLoc);
 			isLocation = isNER;
 		}
@@ -265,6 +268,7 @@ public class NameTester {
 	static boolean checkNERPerson(CoreLabel aNameWord) {
 		boolean result = false;
 		result = aNameWord.get(CoreAnnotations.AnswerAnnotation.class).equals(PERSON);
+		debugPrint("" + aNameWord.get(CoreAnnotations.AnswerAnnotation.class), defaultLevel);
 		debugPrint("NER Person Matches: " + result, defaultLevel);
 		return result;
 	}
