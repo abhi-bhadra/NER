@@ -362,14 +362,22 @@ public class NameTester {
 			// read input
 			String fileContents;
 			fileContents = IOUtils.slurpFile(filename);
+			
+			// parse out sentences using CoreNLP
+			List<List<CoreLabel>> out = classifier.classify(fileContents);
+			for (List<CoreLabel> sentence : out) {
+				String aSentence = sentence.toString();
+				debugPrint(aSentence, defaultLevel);
+			
 
 			// System.out.println(fileContents);
 
 			// tokenize and check each token
-			StringTokenizer tok = new StringTokenizer(fileContents, ".");
-			while (tok.hasMoreTokens()) {
+//			StringTokenizer tok = new StringTokenizer(fileContents, ".");
+//			while (tok.hasMoreTokens()) {
 
-				String str = (String) tok.nextElement();
+				//String str = (String) tok.nextElement();
+				String str = aSentence;
 				debugPrint("File Token: " + str, defaultLevel);
 
 				// run test
@@ -390,6 +398,7 @@ public class NameTester {
 				if (namedEntityList.size() > 0) {
 					debugPrint("", alwaysPrint);
 				}
+			}
 
 			}
 			
@@ -430,6 +439,6 @@ public class NameTester {
 			debugPrint(sortedLocList.toString(), alwaysPrint);
 
 		}
-	}
+	
 
 }
