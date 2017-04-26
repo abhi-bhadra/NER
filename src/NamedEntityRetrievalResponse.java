@@ -15,6 +15,7 @@ public class NamedEntityRetrievalResponse {
 	public static final int OTHER=0;
 	
 	int responseType=0;
+	String entity="";
 	
 	public static int getPerson() {
 		return PERSON;
@@ -50,7 +51,7 @@ public class NamedEntityRetrievalResponse {
 
 	@Override
 	public String toString() {
-		String result = "NamedEntityRetrievalResponse ";
+		String result = "NER Response(" + entity + "): ";
 		if (isPerson()) 
 		result = result + "[PERSON]";
 		if (isLocation()) 
@@ -59,6 +60,14 @@ public class NamedEntityRetrievalResponse {
 		result = result + "[OTHER]";
 		
 		return result;
+	}
+
+	public String getEntity() {
+		return entity;
+	}
+
+	public void setEntity(String entity) {
+		this.entity = entity;
 	}
 	
 

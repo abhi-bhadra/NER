@@ -69,12 +69,9 @@ public class NameTester {
 	}
 
 	// public method to test
-	public static NamedEntityRetrievalResponse checkStringForNameOrLocation(String str) throws Exception {
-		boolean result = false;
-		boolean alreadySeenName = false;
-		boolean alreadySeenLoc = false;
-		boolean nameResult = false;
-		boolean locResult = false;
+	public static List<NamedEntityRetrievalResponse> checkStringForNameOrLocation(String str) throws Exception {
+
+		List<NamedEntityRetrievalResponse> namedEntityList = new ArrayList<NamedEntityRetrievalResponse>();
 		
 		initIfRequired();
 		debugPrint("Input Token: " + str, defaultLevel);
@@ -85,77 +82,83 @@ public class NameTester {
 		debugPrint("Cleaned Input Token: " + cleaned, defaultLevel);
 		for (List<CoreLabel> lcl : classifier.classify(cleaned)) {
 			for (CoreLabel cl : lcl) {
-				
-				// stop checking once something is found within token passed in
-				if (!result) {
+				boolean result = false;
+				boolean alreadySeenName = false;
+				boolean alreadySeenLoc = false;
+				boolean nameResult = false;
+				boolean locResult = false;
+				wordsChecked = wordsChecked + 1;
 
-					wordsChecked = wordsChecked + 1;
+				alreadySeenName = nameSet.contains(cl.toString());
+				alreadySeenLoc = locationSet.contains(cl.toString());
 
-
-					alreadySeenName = nameSet.contains(cl.toString());
-					alreadySeenLoc = locationSet.contains(cl.toString());
-
-					if (!(alreadySeenName || alreadySeenLoc)) {
-						// previously unseen name or location, check for name
-						// first
-						nameResult = checkName(cl);
-					} else {
-						// previously seen name or location, just increment
-						// counters
-						result = true;
-						// increment count
-						if (alreadySeenName) {
-							NameWord nw = nameWordMap.get(cl.toString());
-							nw.incrementCount();
-							names++;
-						}
-						if (alreadySeenLoc) {
-							NameWord nw = locMap.get(cl.toString());
-							nw.incrementCount();
-							locations++;
-						}
-
-					}
-
-					// printProbalitiesForChunk(classifier, word.toString());
-
-					// new word was determined to be a newly seen name
-					if (nameResult) {
-						result = true;
-						debugPrint("Cleaned Name: " + cl.toString(), defaultLevel);
-						nameSet.add(cl.toString());
-						NameWord nw = new NameWord(cl.toString());
+				if (!(alreadySeenName || alreadySeenLoc)) {
+					// previously unseen name or location, check for name
+					// first
+					nameResult = checkName(cl);
+				} else {
+					// previously seen name or location, just increment
+					// counters
+					result = true;
+					// increment count
+					if (alreadySeenName) {
+						NameWord nw = nameWordMap.get(cl.toString());
 						nw.incrementCount();
-						nameWordMap.putIfAbsent(nw.getWord(), nw);
 						names++;
 					}
-
-					// if word was not already a location, or a new name, see if
-					// it is a newly found location now
-					if (!(alreadySeenLoc || nameResult)) {
-						locResult = checkLocation(cl);
-						if (locResult) {
-							result = true;
-							debugPrint("Cleaned Location: " + cl.toString(), defaultLevel);
-							locationSet.add(cl.toString());
-							NameWord nw = new NameWord(cl.toString());
-							nw.incrementCount();
-							locations++;
-							locMap.putIfAbsent(nw.getWord(), nw);
-						}
+					if (alreadySeenLoc) {
+						NameWord nw = locMap.get(cl.toString());
+						nw.incrementCount();
+						locations++;
 					}
 
+				}
+
+				// printProbalitiesForChunk(classifier, word.toString());
+
+				// new word was determined to be a newly seen name
+				if (nameResult) {
+					result = true;
+					debugPrint("Cleaned Name: " + cl.toString(), defaultLevel);
+					nameSet.add(cl.toString());
+					NameWord nw = new NameWord(cl.toString());
+					nw.incrementCount();
+					nameWordMap.putIfAbsent(nw.getWord(), nw);
+					names++;
+				}
+
+				// if word was not already a location, or a new name, see if
+				// it is a newly found location now
+				if (!(alreadySeenLoc || nameResult)) {
+					locResult = checkLocation(cl);
+					if (locResult) {
+						result = true;
+						debugPrint("Cleaned Location: " + cl.toString(), defaultLevel);
+						locationSet.add(cl.toString());
+						NameWord nw = new NameWord(cl.toString());
+						nw.incrementCount();
+						locations++;
+						locMap.putIfAbsent(nw.getWord(), nw);
+					}
+				}
+
+				// collect proper results in a list
+				
+				if (result) {
+					NamedEntityRetrievalResponse nerResp = new NamedEntityRetrievalResponse();
+					nerResp.setEntity(cl.toString());
+					if (alreadySeenName || nameResult)
+						nerResp.setResponseType(NamedEntityRetrievalResponse.getPerson());
+					if (alreadySeenLoc || locResult)
+						nerResp.setResponseType(NamedEntityRetrievalResponse.getLocation());
+					namedEntityList.add(nerResp);
 				}
 
 			}
 		}
 
-		NamedEntityRetrievalResponse nerResp= new NamedEntityRetrievalResponse();
-		if (result) {
-			if (alreadySeenName || nameResult) nerResp.setResponseType(NamedEntityRetrievalResponse.getPerson());
-			if (alreadySeenLoc || locResult) nerResp.setResponseType(NamedEntityRetrievalResponse.getLocation());
-		}
-		return nerResp;
+		if (namedEntityList.size() > 0) debugPrint("Original Input Chunk: " + str, defaultLevel);
+		return namedEntityList;
 		
 		
 	}
@@ -225,6 +228,9 @@ public class NameTester {
 		boolean isExcluded = checkExclusions(aLoc);
 		if (isExcluded)
 			return false;
+		
+		boolean isName = checkNameList(aLoc);
+		if (isName) return false;
 
 		// print what is being tested
 		// System.out.println("\nName Input: " + aName);
@@ -293,11 +299,6 @@ public class NameTester {
 	 
 	 static boolean checkExclusions(String aName) {
 		boolean isExcluded = false;
-		// if see same name shaped word more than once, assume it is a name
-//		if (wordShapeSet.contains(aName)) {
-//			debugPrint("Dictionary check: " + aName, defaultLevel);
-//			return isWord;
-//		}
 		
 		isExcluded = excludedList.indexOf((aName + " ")) > -1;
 		if (isExcluded) {
@@ -356,27 +357,34 @@ public class NameTester {
 
 			// read input
 			String fileContents;
-			NamedEntityRetrievalResponse result;
 			fileContents = IOUtils.slurpFile(filename);
 
 			// System.out.println(fileContents);
 
 			// tokenize and check each token
-			StringTokenizer tok = new StringTokenizer(fileContents, " ");
+			StringTokenizer tok = new StringTokenizer(fileContents, ".");
 			while (tok.hasMoreTokens()) {
 
 				String str = (String) tok.nextElement();
 				debugPrint("File Token: " + str, defaultLevel);
 
 				// run test
-				result = checkStringForNameOrLocation(str);
+				List<NamedEntityRetrievalResponse> namedEntityList;
+				namedEntityList = checkStringForNameOrLocation(str);
 
 				// display results
-				int lev = alwaysPrint;
-				if (!result.isOther()) {
-					debugPrint("String Input: " + str, lev);
-					debugPrint("Has Entity: " + result, lev);
-					debugPrint("", lev);
+				if (namedEntityList.size() > 0) {
+					debugPrint("String Input: " + str, alwaysPrint);
+					debugPrint("", alwaysPrint);
+				}
+				for (NamedEntityRetrievalResponse resp : namedEntityList) {
+					int lev = alwaysPrint;
+					if (!resp.isOther()) {
+						debugPrint("Has Entity: " + resp, lev);
+					}
+				}
+				if (namedEntityList.size() > 0) {
+					debugPrint("", alwaysPrint);
 				}
 
 			}
