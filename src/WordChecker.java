@@ -4,25 +4,27 @@ import java.io.FileReader;
 import java.io.IOException;
 
 class WordChecker {
-    public static boolean check_for_word(String word) {
-        System.out.println(word);
-        try {
-            BufferedReader in = new BufferedReader(new FileReader(
-                    "web2"));
-            String str;
-            while ((str = in.readLine()) != null) {
-                if (str.indexOf(word) != -1) {
-                    return true;
-                }
-            }
-            in.close();
-        } catch (IOException e) {
-        }
+	public static boolean check_for_word(String word) {
+		System.out.println(word);
+		BufferedReader in;
+		try {
+			in = new BufferedReader(new FileReader("web2"));
+			String str;
+			while ((str = in.readLine()) != null) {
+				if (str.indexOf(word) != -1) {
+					in.close();
+					return true;
+				}
+			}
 
-        return false;
-    }
+			in.close();
+		} catch (IOException e) {
+		}
 
-    public static void main(String[] args) {
-        System.out.println(check_for_word("correct" + " "));
-    }
+		return false;
+	}
+
+	public static void main(String[] args) {
+		System.out.println(check_for_word("correct" + " "));
+	}
 }

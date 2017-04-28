@@ -1,7 +1,5 @@
-
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -11,85 +9,114 @@ import edu.stanford.nlp.ie.crf.CRFClassifier;
 import edu.stanford.nlp.io.IOUtils;
 import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.ling.CoreLabel;
-import edu.stanford.nlp.sequences.DocumentReaderAndWriter;
 
-public class NameTester {
+public class StanfordNerAnalyzer {
+	NERAnalysis nerAnalysis = new NERAnalysis();
+	String namelist;
+	String wordlist;
+	String excludedList;
+	String serializedClassifier;
+	String inputFileName;
+	AbstractSequenceClassifier<CoreLabel> classifier;
+	final Pattern pattern = Pattern.compile("([A-Z][a-z][a-z]*)");
+	HashSet<String> wordShapeSet = new HashSet<String>();
+	final String PERSON = "PERSON";
+	final String LOCATION = "LOCATION";
+	public int debugLevel = 6;
+	public int defaultLevel = 5;
+	public int alwaysPrint = 10;
 
-	final static Pattern pattern = Pattern.compile("([A-Z][a-z][a-z]*)");
-	final static String PERSON = "PERSON";
-	final static String LOCATION = "LOCATION";
-	public static int debugLevel = 6;
-	public static int defaultLevel = 5;
-	public static int alwaysPrint = 10;
+	boolean needsInit = true;
 
-	public static int wordsChecked = 0;
-	public static int names = 0;
-	public static int locations = 0;
+	public StanfordNerAnalyzer(NERAnalysis nerAnalysis) {
+		super();
+		this.nerAnalysis = nerAnalysis;
+		try {
+			this.initIfRequired();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 
-	static AbstractSequenceClassifier<CoreLabel> classifier;
-	static String namelist;
-	static String wordlist;
-	static String excludedList;
-	static boolean needsInit = true;
-	static HashSet<String> nameSet = new HashSet<String>();
-	static HashSet<String> locationSet = new HashSet<String>();
-	static HashMap<String,NameWord> nameWordMap = new HashMap<String,NameWord>();
-	static HashMap<String,NameWord> locMap = new HashMap<String,NameWord>();
-	static HashSet<String> wordShapeSet = new HashSet<String>();
+	public StanfordNerAnalyzer(String inputFileName) {
+		super();
+		this.inputFileName = inputFileName;
 
-	static void initIfRequired() throws Exception {
+		try {
+			this.nerAnalysis.setNerInputFileName(inputFileName);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		try {
+			this.initIfRequired();
+		} catch (Exception e1) {
+			e1.printStackTrace();
+		}
+	}
+
+	public StanfordNerAnalyzer() {
+		super();
+		try {
+			this.initIfRequired();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	void initIfRequired() throws Exception {
 		if (needsInit) {
 			initNameList();
 			initWordList();
 			initExcludedList();
-			String serializedClassifier = "english.all.3class.distsim.crf.ser.gz";
+			serializedClassifier = "english.all.3class.distsim.crf.ser.gz";
 			classifier = CRFClassifier.getClassifier(serializedClassifier);
 			needsInit = false;
 		}
 	}
 
-	static void initNameList() throws Exception {
+	void initNameList() throws Exception {
 		namelist = IOUtils.slurpFile("propernames.txt");
 	}
 
-	static void initWordList() throws Exception {
+	void initWordList() throws Exception {
 		wordlist = IOUtils.slurpFile("web2.txt");
 	}
-	
-	static void initExcludedList() throws Exception{
-		excludedList=IOUtils.slurpFile("Exclusions.txt");
+
+	void initExcludedList() throws Exception {
+		excludedList = IOUtils.slurpFile("Exclusions.txt");
 	}
 
 	// print debug statements
-	static void debugPrint(String aString, int aLevel) {
+	void debugPrint(String aString, int aLevel) {
 		if (aLevel >= debugLevel) {
 			System.out.println(aString);
 		}
 	}
 
 	// public method to test
-	public static List<NamedEntityRetrievalResponse> checkStringForNameOrLocation(String str) throws Exception {
+	public List<NamedEntityRetrievalResponse> checkStringForNameOrLocation(String str) throws Exception {
 
 		List<NamedEntityRetrievalResponse> namedEntityList = new ArrayList<NamedEntityRetrievalResponse>();
-		
+
 		initIfRequired();
 		debugPrint("Input Token: " + str, defaultLevel);
-		
-		//Replace all non alpha chars for right now
+
+		// Replace all non alpha chars for right now
 		String cleaned = str.replaceAll("[^a-zA-Z\\d\\s:]", " ");
 		cleaned = cleaned.trim();
 		debugPrint("Cleaned Input Token: " + cleaned, defaultLevel);
 		for (List<CoreLabel> lcl : classifier.classify(cleaned)) {
 			for (CoreLabel cl : lcl) {
+				String newWord = cl.toString();
 				boolean result = false;
 				boolean alreadySeenName = false;
 				boolean alreadySeenLoc = false;
 				boolean nameResult = false;
 				boolean locResult = false;
-				wordsChecked = wordsChecked + 1;
+				nerAnalysis.incrementWordCount();
 
-				alreadySeenName = nameSet.contains(cl.toString());
-				alreadySeenLoc = locationSet.contains(cl.toString());
+				alreadySeenName = nerAnalysis.previouslySeenName(newWord);
+				alreadySeenLoc = nerAnalysis.previouslySeenLocation(newWord);
 
 				if (!(alreadySeenName || alreadySeenLoc)) {
 					// previously unseen name or location, check for name
@@ -101,14 +128,10 @@ public class NameTester {
 					result = true;
 					// increment count
 					if (alreadySeenName) {
-						NameWord nw = nameWordMap.get(cl.toString());
-						nw.incrementCount();
-						names++;
+						nerAnalysis.incrementNameCount(newWord);
 					}
 					if (alreadySeenLoc) {
-						NameWord nw = locMap.get(cl.toString());
-						nw.incrementCount();
-						locations++;
+						nerAnalysis.incrementLocationCount(newWord);
 					}
 
 				}
@@ -119,11 +142,7 @@ public class NameTester {
 				if (nameResult) {
 					result = true;
 					debugPrint("Cleaned Name: " + cl.toString(), defaultLevel);
-					nameSet.add(cl.toString());
-					NameWord nw = new NameWord(cl.toString());
-					nw.incrementCount();
-					nameWordMap.putIfAbsent(nw.getWord(), nw);
-					names++;
+					nerAnalysis.handleName(newWord);
 				}
 
 				// if word was not already a location, or a new name, see if
@@ -132,17 +151,13 @@ public class NameTester {
 					locResult = checkLocation(cl);
 					if (locResult) {
 						result = true;
-						debugPrint("Cleaned Location: " + cl.toString(), defaultLevel);
-						locationSet.add(cl.toString());
-						NameWord nw = new NameWord(cl.toString());
-						nw.incrementCount();
-						locations++;
-						locMap.putIfAbsent(nw.getWord(), nw);
+						debugPrint("Cleaned Location: " + newWord, defaultLevel);
+						nerAnalysis.handleLocation(newWord);
 					}
 				}
 
 				// collect proper results in a list
-				
+
 				if (result) {
 					NamedEntityRetrievalResponse nerResp = new NamedEntityRetrievalResponse();
 					nerResp.setEntity(cl.toString());
@@ -156,22 +171,23 @@ public class NameTester {
 			}
 		}
 
-		if (namedEntityList.size() > 0) debugPrint("Original Input Chunk: " + str, defaultLevel);
+		if (namedEntityList.size() > 0)
+			debugPrint("Original Input Chunk: " + str, defaultLevel);
 		return namedEntityList;
-		
-		
+
 	}
 
 	// check if a given word is a name
-	static boolean checkName(CoreLabel aNameWord) {
+	boolean checkName(CoreLabel aNameWord) {
 		String aName = aNameWord.toString();
 		boolean isName = false;
 		boolean isWord = true;
 		boolean isInNamelist = false;
 
 		boolean isExcluded = checkExclusions(aName);
-		if (isExcluded) return false;
-		
+		if (isExcluded)
+			return false;
+
 		// print what is being tested
 		// System.out.println("\nName Input: " + aName);
 		debugPrint("\nName Input: " + aName, defaultLevel);
@@ -198,9 +214,9 @@ public class NameTester {
 			}
 			isName = !isWord;
 		}
-		
 
-		// check with NER library if the string is a name, override initial result
+		// check with NER library if the string is a name, override initial
+		// result
 		if (!isName) {
 			debugPrint("Checking NER: " + aName, defaultLevel);
 			boolean isNER = false;
@@ -208,18 +224,20 @@ public class NameTester {
 			if (isNER) {
 				debugPrint("Result Person: " + aName + ": " + isNER, defaultLevel);
 			}
+
 			isName = isNER;
 		}
-		
-		if (isName) nameSet.add(aName.toString());
+
+		if (isName)
+			nerAnalysis.handleName(aName);
 
 		// either the name is in the shape of a name Xx* and not a dictionary
 		// word, or NER thinks it is a name
 		return (isName);
 	}
-	
+
 	// check if a given word is a Location
-	static boolean checkLocation(CoreLabel aLocWord) {
+	boolean checkLocation(CoreLabel aLocWord) {
 
 		String aLoc = aLocWord.toString();
 		boolean isLocation = false;
@@ -227,12 +245,15 @@ public class NameTester {
 		boolean isExcluded = checkExclusions(aLoc);
 		if (isExcluded)
 			return false;
-		
+
 		boolean isName = checkNameList(aLoc);
-		if (isName) return false;
-		
-		isName = nameSet.contains(aLoc);
-		if (isName) return false;
+		if (isName)
+			return false;
+
+		// was this previously considered a name? if so, not a location
+		isName = nerAnalysis.previouslySeenName(aLoc);// nameSet.contains(aLoc);
+		if (isName)
+			return false;
 
 		// print what is being tested
 		// System.out.println("\nName Input: " + aName);
@@ -244,16 +265,14 @@ public class NameTester {
 		isNER = checkNERLocation(aLocWord);
 		if (isNER) {
 			debugPrint("Result Location: " + aLoc + ": " + isNER, defaultLevel);
-			locationSet.add(aLoc);
+			nerAnalysis.handleLocation(aLoc);
 			isLocation = isNER;
 		}
-		
+
 		return isLocation;
 	}
-	
-	
 
-	static boolean checkRegex(String aName) {
+	boolean checkRegex(String aName) {
 		boolean result = false;
 		if (aName != null) {
 			if (pattern.matcher(aName).matches()) {
@@ -264,22 +283,22 @@ public class NameTester {
 		return result;
 	}
 
-	static boolean checkNERPerson(CoreLabel aNameWord) {
+	boolean checkNERPerson(CoreLabel aNameWord) {
 		boolean result = false;
 		result = aNameWord.get(CoreAnnotations.AnswerAnnotation.class).equals(PERSON);
 		debugPrint("" + aNameWord.get(CoreAnnotations.AnswerAnnotation.class), defaultLevel);
 		debugPrint("NER Person Matches: " + result, defaultLevel);
 		return result;
 	}
-	
-	static boolean checkNERLocation(CoreLabel aNameWord) {
+
+	boolean checkNERLocation(CoreLabel aNameWord) {
 		boolean result = false;
 		result = aNameWord.get(CoreAnnotations.AnswerAnnotation.class).equals(LOCATION);
 		debugPrint("NER Location Matches: " + result, defaultLevel);
 		return result;
 	}
 
-	 static boolean checkDictionary(String aName) {
+	boolean checkDictionary(String aName) {
 		boolean isWord = false;
 		// if see same name shaped word more than once, assume it is a name
 		if (wordShapeSet.contains(aName)) {
@@ -288,8 +307,8 @@ public class NameTester {
 		}
 		String lcName = aName.toLowerCase();
 		if (!lcName.equals(aName)) {
-			if (checkRegex(aName)) {
-				wordShapeSet.add(aName);
+			if (this.checkRegex(aName)) {
+				this.wordShapeSet.add(aName);
 			}
 		}
 		isWord = wordlist.indexOf((lcName + " ")) > -1;
@@ -299,10 +318,10 @@ public class NameTester {
 
 		return isWord;
 	}
-	 
-	 static boolean checkExclusions(String aName) {
+
+	boolean checkExclusions(String aName) {
 		boolean isExcluded = false;
-		
+
 		isExcluded = excludedList.indexOf((aName + " ")) > -1;
 		if (isExcluded) {
 			debugPrint("Excluded Matches: " + aName, defaultLevel);
@@ -311,7 +330,7 @@ public class NameTester {
 		return isExcluded;
 	}
 
-	static boolean checkNameList(String aName) {
+	boolean checkNameList(String aName) {
 		boolean isName = false;
 		isName = namelist.indexOf(aName + " ") > -1;
 		if (isName) {
@@ -321,50 +340,16 @@ public class NameTester {
 		return isName;
 	}
 
-	static void printProbabilities(AbstractSequenceClassifier<CoreLabel> aClassifier, String aFilename) {
-		DocumentReaderAndWriter<CoreLabel> readerAndWriter = aClassifier.makePlainTextReaderAndWriter();
-		debugPrint("Per-token marginalized probabilities", defaultLevel);
-		aClassifier.printProbs(aFilename, readerAndWriter);
-	}
+	public NERAnalysis processInputs() throws Exception {
 
-	static void printProbalitiesForChunk(AbstractSequenceClassifier<CoreLabel> aClassifier, String aChunk) {
-		//DocumentReaderAndWriter<CoreLabel> readerAndWriter = aClassifier.makePlainTextReaderAndWriter();
-		//String[] stringArray = { aChunk };
-		// System.out.println(stringArray[0]);
-		// stringArray[0] = aChunk;
-
-		// List<List<CoreLabel>> docs = aClassifier.classifyRaw(aChunk,
-		// readerAndWriter);
-		// aClassifier.printProbsDocuments(docs);
-	}
-	
-	static void processNewStyle(String filename) throws Exception {
-
-		StanfordNerAnalyzer sna = new StanfordNerAnalyzer(filename);
-		NERAnalysis nerAnalysis = sna.processInputs();
-		NERAnalysis.printTestResults(nerAnalysis);
-
-	}
-	
-	static void processOldStyle(String filename) throws Exception {
-
-		initIfRequired();
-
-		// read input
-		String fileContents;
-		fileContents = IOUtils.slurpFile(filename);
-
+		// get the sentences to be parsed
 		// parse out sentences using CoreNLP
+		String fileContents = nerAnalysis.getNerInputText();
 		List<List<CoreLabel>> out = classifier.classify(fileContents);
 		for (List<CoreLabel> sentence : out) {
 			String aSentence = sentence.toString();
 			debugPrint(aSentence, defaultLevel);
 			String str = aSentence;
-
-			// tokenize and check each token
-			// StringTokenizer tok = new StringTokenizer(fileContents, ".");
-			// while (tok.hasMoreTokens()) {
-			// String str = (String) tok.nextElement();
 
 			debugPrint("File Token: " + str, defaultLevel);
 
@@ -377,83 +362,21 @@ public class NameTester {
 				debugPrint("String Input: " + str, alwaysPrint);
 				debugPrint("", alwaysPrint);
 			}
-			
+
 			for (NamedEntityRetrievalResponse resp : namedEntityList) {
 				int lev = alwaysPrint;
 				if (!resp.isOther()) {
 					debugPrint("Has Entity: " + resp, lev);
 				}
 			}
-			
+
 			if (namedEntityList.size() > 0) {
 				debugPrint("", alwaysPrint);
 			}
-			
+
 		}
 
-		// report hit rate
-
-		debugPrint("\n", alwaysPrint);
-		debugPrint("Words Checked: " + wordsChecked, alwaysPrint);
-		debugPrint("Names Found: " + names, alwaysPrint);
-		debugPrint("Locations Found: " + locations, alwaysPrint);
-
-		List<NameWord> sortedNames = new ArrayList<NameWord>(nameWordMap.values());
-		List<NameWord> sortedLoc = new ArrayList<NameWord>(locMap.values());
-		List<String> sortedList = new ArrayList<String>(nameSet);
-		List<String> sortedLocList = new ArrayList<String>(locationSet);
-		int totalNames = 0;
-		int totalLocs = 0;
-		for (NameWord temp : sortedNames) {
-			totalNames = totalNames + temp.occurance;
-		}
-
-		for (NameWord temp : sortedLoc) {
-			totalLocs = totalLocs + temp.occurance;
-		}
-
-		Collections.sort(sortedNames);
-		debugPrint("\nCounts of Unique Names found: " + sortedNames.size() + " in " + totalNames, alwaysPrint);
-		debugPrint(sortedNames.toString(), alwaysPrint);
-
-		Collections.sort(sortedList);
-		debugPrint("\nList of Unique Names found: " + sortedList.size() + " in " + totalNames, alwaysPrint);
-		debugPrint(sortedList.toString(), alwaysPrint);
-
-		Collections.sort(sortedLoc);
-		debugPrint("\nCounts of Unique Locations found: " + sortedLoc.size() + " in " + totalLocs, alwaysPrint);
-		debugPrint(sortedLoc.toString(), alwaysPrint);
-
-		Collections.sort(sortedLocList);
-		debugPrint("\nList of Unique Locations found: " + sortedLocList.size() + " in " + totalLocs, alwaysPrint);
-		debugPrint(sortedLocList.toString(), alwaysPrint);
-
+		return nerAnalysis;
 	}
-
-	// main method
-	// create classifier
-	// read input (if not a file then use that as the input string to check)
-	// parse content into tokens
-	// check each token
-	public static void main(String[] args) throws Exception {
-
-		String filename;
-		if (args.length > 0) {
-			filename = args[0];
-		} else {
-			filename = "MyTestFile.txt";
-		}
-		
-		boolean useOldStyle = false;
-		if (useOldStyle) {
-			processOldStyle(filename);
-			debugPrint("OLD STYLE", alwaysPrint);
-		} else {
-			processNewStyle(filename);
-			debugPrint("NEW STYLE", alwaysPrint);
-		}
-		
-	}
-	
 
 }
